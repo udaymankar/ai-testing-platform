@@ -4,6 +4,7 @@ import com.uday.aitesting.dto.*;
 import com.uday.aitesting.model.*;
 import com.uday.aitesting.repository.*;
 import com.uday.aitesting.service.TestingRequestService;
+import com.uday.aitesting.service.TestPlanService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -20,13 +21,16 @@ public class ApiController {
     private final ManualReviewRepository reviewRepository;
     private final ManualFindingRepository findingRepository;
     private final TestingRequestService requestService;
+    private final TestPlanService testPlanService;
 
     public ApiController(TestingRequestRepository requestRepository, AutomationRunRepository runRepository,
                          AutomationResultRepository resultRepository, ManualReviewRepository reviewRepository,
-                         ManualFindingRepository findingRepository, TestingRequestService requestService) {
+                         ManualFindingRepository findingRepository, TestingRequestService requestService,
+                         TestPlanService testPlanService) {
         this.requestRepository = requestRepository; this.runRepository = runRepository;
         this.resultRepository = resultRepository; this.reviewRepository = reviewRepository;
         this.findingRepository = findingRepository; this.requestService = requestService;
+        this.testPlanService = testPlanService;
     }
 
     @GetMapping("/health")
@@ -54,6 +58,13 @@ public class ApiController {
                 "runs", runRepository.findByTestingRequest_IdOrderByStartedAtDesc(id));
     }
 
+    @GetMapping("/testing-requests/{id}/plan")
+    public List<TestPlanService.PlannedCheck> plan(@PathVariable UUID id) {
+        TestingRequest request = requestRepository.findById(id)
+                .orElseThrow(() -> notFound("Request not found"));
+        return testPlanService.createPlan(request.getScope(), request.getTargetUrl());
+    }
+
     @PostMapping("/testing-requests/{id}/automation")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public AutomationRun start(@PathVariable UUID id) {
@@ -70,7 +81,8 @@ public class ApiController {
     @PatchMapping("/manual-reviews/{id}")
     public ManualReview updateReview(@PathVariable UUID id, @Valid @RequestBody UpdateManualReview dto) {
         ManualReview review = reviewRepository.findById(id).orElseThrow(() -> notFound("Manual review not found"));
-        if (dto.status() != null) review.update(dto.status(), dto.assignedTester(), dto.reviewerNotes());
+        review.update(dto.status() == null ? review.getStatus() : dto.status(),
+                dto.assignedTester(), dto.reviewerNotes());
         return reviewRepository.save(review);
     }
 

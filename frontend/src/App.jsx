@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import './features.css'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
-async function api(path, options = {}) {
+function basicAuth(credentials) {
+  if (!credentials?.username || !credentials?.password) return {}
+  return { Authorization: `Basic ${window.btoa(`${credentials.username}:${credentials.password}`)}` }
+}
+async function api(path, options = {}, credentials) {
   const response = await fetch(`${API}/api${path}`, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...basicAuth(credentials), ...(options.headers || {}) },
   })
   if (!response.ok) {
     let message = `Request failed (${response.status})`
     try { const body = await response.json(); message = body.detail || body.message || message } catch {}
+    if (response.status === 401) message = 'Sign-in failed. Check APP_USERNAME and APP_PASSWORD in your .env file.'
+    if (response.status === 403) message = 'You are not allowed to perform this action.'
     throw new Error(message)
   }
   if (response.status === 204) return null
@@ -16,6 +23,8 @@ async function api(path, options = {}) {
 }
 function Badge({ children, kind = '' }) { return <span className={`badge ${kind}`}>{children}</span> }
 function App() {
+  const [credentials, setCredentials] = useState({ username: '', password: '' })
+  const [signedIn, setSignedIn] = useState(false)
   const [url, setUrl] = useState('https://example.com')
   const [scope, setScope] = useState('General exploratory checks')
   const [browser, setBrowser] = useState('Chrome')
@@ -23,42 +32,80 @@ function App() {
   const [requests, setRequests] = useState([])
   const [selected, setSelected] = useState(null)
   const [results, setResults] = useState([])
+  const [plan, setPlan] = useState([])
+  const [findings, setFindings] = useState([])
+  const [finding, setFinding] = useState({ title: '', description: '', severity: 'MEDIUM', evidenceUrl: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const callApi = useCallback((path, options = {}) => api(path, options, credentials), [credentials])
+
   const refresh = useCallback(async () => {
-    try { setRequests(await api('/testing-requests')) } catch (e) { setError(e.message) }
-  }, [])
+    if (!signedIn) return
+    try { setRequests(await callApi('/testing-requests')) } catch (e) { setError(e.message) }
+  }, [callApi, signedIn])
   useEffect(() => { refresh() }, [refresh])
+
   useEffect(() => {
-    if (!selected?.request?.id) return
+    if (!signedIn || !selected?.request?.id) return
     let cancelled = false
     const load = async () => {
       try {
         const [detail, foundResults] = await Promise.all([
-          api(`/testing-requests/${selected.request.id}`),
-          api(`/testing-requests/${selected.request.id}/results`)
+          callApi(`/testing-requests/${selected.request.id}`),
+          callApi(`/testing-requests/${selected.request.id}/results`),
         ])
-        if (!cancelled) { setSelected(detail); setResults(foundResults) }
+        const foundFindings = detail.manualReview?.id
+          ? await callApi(`/manual-reviews/${detail.manualReview.id}/findings`)
+          : []
+        if (!cancelled) {
+          setSelected(detail)
+          setResults(foundResults)
+          setFindings(foundFindings)
+        }
       } catch (e) { if (!cancelled) setError(e.message) }
     }
     load()
     const timer = setInterval(load, 4000)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [selected?.request?.id])
+  }, [selected?.request?.id, signedIn, callApi])
+
   const counts = useMemo(() => ({
     total: results.length,
     pass: results.filter(r => r.outcome === 'PASS').length,
-    fail: results.filter(r => ['FAIL', 'ERROR'].includes(r.outcome)).length
+    fail: results.filter(r => ['FAIL', 'ERROR'].includes(r.outcome)).length,
   }), [results])
+  const hasActiveRun = Boolean(selected?.runs?.some(run => ['QUEUED', 'RUNNING'].includes(run.status)))
+
+  async function connect(event) {
+    event.preventDefault(); setBusy(true); setError(''); setNotice('')
+    try {
+      const list = await api('/testing-requests', {}, credentials)
+      setRequests(list)
+      setSignedIn(true)
+      setNotice('Signed in. Your dashboard API connection is protected with HTTP Basic authentication.')
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  function signOut() {
+    setSignedIn(false)
+    setCredentials({ username: '', password: '' })
+    setRequests([]); setSelected(null); setResults([]); setPlan([]); setFindings([])
+    setNotice('Signed out. Your credentials have been cleared from this page.')
+  }
   async function createRequest(event) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
     try {
-      const created = await api('/testing-requests', { method: 'POST', body: JSON.stringify({
-        targetUrl: url, scope, browser, authorizationConfirmed: authorized
+      const created = await callApi('/testing-requests', { method: 'POST', body: JSON.stringify({
+        targetUrl: url, scope, browser, authorizationConfirmed: authorized,
       }) })
       const detail = { request: created.request, manualReview: created.manualReview, runs: [] }
-      setSelected(detail); setResults([]); setNotice('Request created. Manual review is pending until a human tester completes it.')
+      setSelected(detail); setResults([]); setFindings([]); setPlan([])
+      const [plannedChecks, initialFindings] = await Promise.all([
+        callApi(`/testing-requests/${created.request.id}/plan`),
+        callApi(`/manual-reviews/${created.manualReview.id}/findings`),
+      ])
+      setPlan(plannedChecks); setFindings(initialFindings)
+      setNotice('Request created. AI-assisted checks are planned; human review remains pending until a tester completes it.')
       await refresh()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
@@ -66,48 +113,77 @@ function App() {
     if (!selected?.request?.id) return
     setBusy(true); setError(''); setNotice('')
     try {
-      await api(`/testing-requests/${selected.request.id}/automation`, { method: 'POST' })
-      setNotice('Automation queued. This page refreshes status automatically.')
+      const queuedRun = await callApi(`/testing-requests/${selected.request.id}/automation`, { method: 'POST' })
+      setSelected(previous => previous ? { ...previous, runs: [queuedRun, ...(previous.runs || [])] } : previous)
+      setNotice('Selenium run queued. Results and request status refresh automatically.')
       await refresh()
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   async function openRequest(request) {
     setError('')
     try {
-      const detail = await api(`/testing-requests/${request.id}`)
-      setSelected(detail)
-      setResults(await api(`/testing-requests/${request.id}/results`))
+      const detail = await callApi(`/testing-requests/${request.id}`)
+      const [foundResults, plannedChecks, foundFindings] = await Promise.all([
+        callApi(`/testing-requests/${request.id}/results`),
+        callApi(`/testing-requests/${request.id}/plan`),
+        detail.manualReview?.id ? callApi(`/manual-reviews/${detail.manualReview.id}/findings`) : Promise.resolve([]),
+      ])
+      setSelected(detail); setResults(foundResults); setPlan(plannedChecks); setFindings(foundFindings)
     } catch (e) { setError(e.message) }
   }
   async function updateReview(status) {
     if (!selected?.manualReview?.id) return
     setBusy(true); setError('')
     try {
-      const review = await api(`/manual-reviews/${selected.manualReview.id}`, {
+      const review = await callApi(`/manual-reviews/${selected.manualReview.id}`, {
         method: 'PATCH', body: JSON.stringify({
           status,
           assignedTester: selected.manualReview.assignedTester || '',
-          reviewerNotes: selected.manualReview.reviewerNotes || ''
-        })
+          reviewerNotes: selected.manualReview.reviewerNotes || '',
+        }),
       })
       setSelected({ ...selected, manualReview: review })
       setNotice(`Manual review updated to ${status}.`)
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
+  async function addFinding(event) {
+    event.preventDefault()
+    if (!selected?.manualReview?.id) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const created = await callApi(`/manual-reviews/${selected.manualReview.id}/findings`, {
+        method: 'POST', body: JSON.stringify(finding),
+      })
+      setFindings(previous => [created, ...previous])
+      setFinding({ title: '', description: '', severity: 'MEDIUM', evidenceUrl: '' })
+      setNotice('Manual finding saved.')
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+
   return <div className="app-shell">
     <header className="topbar">
       <a className="brand" href="#"><span className="brand-mark">T</span><span>TestPilot <b>AI</b></span></a>
-      <span className="top-tag"><i /> AI-ASSISTED QUALITY ENGINE</span>
+      <div className="topbar-right"><span className="top-tag"><i /> AI-ASSISTED QUALITY ENGINE</span>{signedIn && <button className="text-button" onClick={signOut}>Sign out</button>}</div>
     </header>
     <main>
       <section className="hero">
         <div className="eyebrow">AUTOMATION + HUMAN REVIEW</div>
         <h1>Test any authorized website.<br /><span>Understand every result.</span></h1>
-        <p>Submit a testing request, run browser checks with Selenium, and track manual review in one workspace.</p>
+        <p>Submit a testing request, run allow-listed Selenium checks planned by AI, and track human findings in one workspace.</p>
       </section>
       {error && <div className="alert error">{error}<button onClick={() => setError('')}>Dismiss</button></div>}
       {notice && <div className="alert success">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div>}
-      <div className="layout">
+
+      {!signedIn ? <section className="panel auth-panel">
+        <div className="panel-heading"><div><span className="step">AUTH</span><h2>Sign in to your testing workspace</h2></div><Badge>PROTECTED API</Badge></div>
+        <p className="muted auth-copy">Use the APP_USERNAME and APP_PASSWORD configured for the backend. The credentials are kept in page memory and are not written to browser storage.</p>
+        <form onSubmit={connect} className="auth-form">
+          <div><label htmlFor="username">Username</label><input id="username" autoComplete="username" required value={credentials.username} onChange={e => setCredentials(v => ({ ...v, username: e.target.value }))} /></div>
+          <div><label htmlFor="password">Password</label><input id="password" type="password" autoComplete="current-password" required value={credentials.password} onChange={e => setCredentials(v => ({ ...v, password: e.target.value }))} /></div>
+          <button className="primary" disabled={busy}>{busy ? 'Connecting…' : 'Sign in and load dashboard'} <span>→</span></button>
+        </form>
+        <p className="fine-print">For local development, copy .env.example to .env and change the sample credentials before starting the services. Use HTTPS and unique secrets when deploying.</p>
+      </section> : <div className="layout">
         <section className="panel request-panel">
           <div className="panel-heading"><div><span className="step">01</span><h2>New testing request</h2></div><span className="muted">~ 1 minute</span></div>
           <form onSubmit={createRequest}>
@@ -118,12 +194,13 @@ function App() {
               <option>General exploratory checks</option><option>Login and navigation</option><option>Signup and forms</option><option>Search and filters</option><option>Responsive and content checks</option>
             </select>
             <label htmlFor="browser">Browser</label>
-            <select id="browser" value={browser} onChange={e => setBrowser(e.target.value)}><option>Chrome</option><option>Firefox</option><option>Edge</option></select>
+            <select id="browser" value={browser} onChange={e => setBrowser(e.target.value)}><option>Chrome</option></select>
+            <p className="fine-print browser-note">The bundled Docker browser worker currently provides Chrome.</p>
             <label className="check-row"><input type="checkbox" checked={authorized} onChange={e => setAuthorized(e.target.checked)} required /> <span>I own this website or have permission to test it.</span></label>
             <div className="manual-note"><span>✓</span><div><b>Human manual review included</b><small>A separate review request will be created and remain pending until a tester completes it.</small></div></div>
             <button className="primary" disabled={busy || !authorized}>{busy ? 'Working…' : 'Create testing request'} <span>→</span></button>
           </form>
-          <p className="fine-print">Only test systems you are authorized to assess. Browser execution is subject to server-side URL and network safety checks.</p>
+          <p className="fine-print">Only test systems you are authorized to assess. URL checks are defense-in-depth and do not replace browser-worker network isolation.</p>
         </section>
         <section className="panel requests-panel">
           <div className="panel-heading"><div><span className="step">02</span><h2>Testing workspace</h2></div><button className="text-button" onClick={refresh}>↻ Refresh</button></div>
@@ -138,18 +215,31 @@ function App() {
             <div className="stats">
               <div><small>Checks recorded</small><b>{counts.total}</b></div><div><small>Passed</small><b className="green">{counts.pass}</b></div><div><small>Failed / error</small><b className="red">{counts.fail}</b></div>
             </div>
-            <button className="primary" onClick={startAutomation} disabled={busy || ['QUEUED','RUNNING'].includes(selected.request.status)}>{busy ? 'Working…' : '▶ Run Selenium checks'}</button>
+            <div className="section-label">AI-ASSISTED TEST PLAN</div>
+            <div className="plan-list">{plan.map(check => <div className="plan-row" key={check.id}><span>✓</span><div><b>{check.name}</b><small>{check.description}</small></div></div>)}</div>
+            <button className="primary run-button" onClick={startAutomation} disabled={busy || hasActiveRun}>{busy ? 'Working…' : hasActiveRun ? 'Selenium run in progress' : '▶ Run Selenium checks'} <span>{hasActiveRun ? 'RUNNING' : '→'}</span></button>
             <div className="section-label">AUTOMATION RESULTS</div>
             {results.length === 0 ? <p className="muted">No automation results yet.</p> : results.map(r => <div className="result-row" key={r.id}><span className={`result-dot ${r.outcome?.toLowerCase()}`}/><div><b>{r.testName}</b><small>{r.details}</small></div><Badge kind={r.outcome?.toLowerCase()}>{r.outcome}</Badge></div>)}
             <div className="manual-card">
               <div className="manual-card-head"><div><span className="section-label">HUMAN REVIEW</span><h4>Manual testing request</h4></div><Badge kind={selected.manualReview?.status?.toLowerCase()}>{selected.manualReview?.status || 'PENDING'}</Badge></div>
               <p>Manual review is a human task; automation does not complete it automatically.</p>
               <div className="manual-actions"><button onClick={() => updateReview('IN_PROGRESS')} disabled={busy}>Mark in progress</button><button onClick={() => updateReview('COMPLETED')} disabled={busy}>Mark completed</button></div>
-              <small className="muted">Admin/tester access controls must be added before this dashboard is publicly exposed.</small>
+              <div className="section-label">ADD MANUAL FINDING</div>
+              <form className="finding-form" onSubmit={addFinding}>
+                <label htmlFor="finding-title">Finding title</label>
+                <input id="finding-title" required maxLength={180} value={finding.title} onChange={e => setFinding(v => ({ ...v, title: e.target.value }))} placeholder="e.g. Submit button is not keyboard accessible" />
+                <label htmlFor="finding-description">Steps and evidence</label>
+                <textarea id="finding-description" required maxLength={4000} rows={3} value={finding.description} onChange={e => setFinding(v => ({ ...v, description: e.target.value }))} placeholder="Steps to reproduce, expected result, actual result…" />
+                <div className="finding-fields"><div><label htmlFor="severity">Severity</label><select id="severity" value={finding.severity} onChange={e => setFinding(v => ({ ...v, severity: e.target.value }))}><option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option></select></div><div><label htmlFor="evidence">Evidence URL (optional)</label><input id="evidence" type="url" value={finding.evidenceUrl} onChange={e => setFinding(v => ({ ...v, evidenceUrl: e.target.value }))} placeholder="https://…" /></div></div>
+                <button className="primary" disabled={busy}>{busy ? 'Saving…' : 'Save finding'} <span>＋</span></button>
+              </form>
+              <div className="section-label">RECORDED FINDINGS ({findings.length})</div>
+              {findings.length === 0 ? <p className="muted">No manual findings recorded yet.</p> : findings.map(item => <div className="finding-row" key={item.id}><div><b>{item.title}</b><p>{item.description}</p>{item.evidenceUrl && <a href={item.evidenceUrl} target="_blank" rel="noreferrer">Open evidence ↗</a>}</div><Badge kind={item.severity.toLowerCase()}>{item.severity}</Badge></div>)}
+              <small className="muted">This prototype uses one configured workspace account, not separate per-user accounts or record ownership. Add tenant-level authorization before a multi-user launch.</small>
             </div>
           </div>}
         </section>
-      </div>
+      </div>}
       <footer><span>TESTPILOT AI</span><span>Built for responsible, evidence-based QA.</span><span>Prototype · Secure before public launch</span></footer>
     </main>
   </div>
