@@ -70,7 +70,7 @@ public class BrowserAutomationWorker {
             driver.get(target.toString());
 
             // This is a secondary check only: browser redirects may already have been followed.
-            List<PlannedCheck> plan = testPlanService.createPlan(request.getScope(), target.toString());
+            List<PlannedCheck> plan = testPlanService.restorePlan(request.getPlannedCheckIds());
             boolean finalUrlIsSafe = isSafeFinalUrl(driver.getCurrentUrl());
             for (PlannedCheck check : plan) {
                 if (!finalUrlIsSafe && "PAGE_REACHED".equals(check.id())) {

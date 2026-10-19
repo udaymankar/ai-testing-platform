@@ -62,7 +62,7 @@ public class ApiController {
     public List<TestPlanService.PlannedCheck> plan(@PathVariable UUID id) {
         TestingRequest request = requestRepository.findById(id)
                 .orElseThrow(() -> notFound("Request not found"));
-        return testPlanService.createPlan(request.getScope(), request.getTargetUrl());
+        return testPlanService.restorePlan(request.getPlannedCheckIds());
     }
 
     @PostMapping("/testing-requests/{id}/automation")

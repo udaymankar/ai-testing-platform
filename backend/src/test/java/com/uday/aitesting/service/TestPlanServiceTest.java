@@ -28,4 +28,15 @@ class TestPlanServiceTest {
         assertTrue(plan.stream().allMatch(item -> allowed.contains(item.id())));
         assertEquals(plan.size(), plan.stream().map(TestPlanService.PlannedCheck::id).distinct().count());
     }
+
+    @Test
+    void restoredPlanUsesOnlyPersistedAllowListedIdsAndAddsCoreChecks() {
+        var plan = service.restorePlan("IMAGES_ALT_TEXT,FORMS_DISCOVERED,not_a_real_check");
+        var ids = plan.stream().map(TestPlanService.PlannedCheck::id).collect(Collectors.toSet());
+        assertTrue(ids.contains("PAGE_REACHED"));
+        assertTrue(ids.contains("PAGE_TITLE"));
+        assertTrue(ids.contains("IMAGES_ALT_TEXT"));
+        assertTrue(ids.contains("FORMS_DISCOVERED"));
+        assertFalse(ids.contains("NOT_A_REAL_CHECK"));
+    }
 }

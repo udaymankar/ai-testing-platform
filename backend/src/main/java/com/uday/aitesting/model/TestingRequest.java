@@ -22,6 +22,8 @@ public class TestingRequest {
     private RequestStatus status = RequestStatus.QUEUED;
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+    @Column(length = 256)
+    private String plannedCheckIds;
 
     protected TestingRequest() {}
     public TestingRequest(String targetUrl, String scope, String browser, boolean authorizationConfirmed) {
@@ -35,5 +37,7 @@ public class TestingRequest {
     public boolean isAuthorizationConfirmed() { return authorizationConfirmed; }
     public RequestStatus getStatus() { return status; }
     public Instant getCreatedAt() { return createdAt; }
+    public String getPlannedCheckIds() { return plannedCheckIds; }
+    public void setPlannedCheckIds(String plannedCheckIds) { this.plannedCheckIds = plannedCheckIds; }
     public void setStatus(RequestStatus status) { this.status = status; }
 }

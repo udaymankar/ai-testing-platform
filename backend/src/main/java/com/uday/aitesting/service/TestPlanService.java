@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Produces a constrained plan of read-only checks; AI output is treated as untrusted data. */
+/** Produces a constrained plan of read-only checks. AI output is treated as untrusted data. */
 @Service
 public class TestPlanService {
     public record PlannedCheck(String id, String name, String description) {}
@@ -38,7 +38,19 @@ public class TestPlanService {
     }
 
     public List<PlannedCheck> createPlan(String scope, String url) {
-        List<String> requestedIds = requestAiPlan(scope, url);
+        return normalizePlan(requestAiPlan(scope, url));
+    }
+
+    /** Rehydrates the exact plan saved with a request so preview and execution cannot drift. */
+    public List<PlannedCheck> restorePlan(String persistedIds) {
+        List<String> ids = persistedIds == null || persistedIds.isBlank()
+                ? fallbackIds()
+                : java.util.Arrays.stream(persistedIds.split(","))
+                    .map(id -> id.trim().toUpperCase(Locale.ROOT)).filter(id -> !id.isBlank()).toList();
+        return normalizePlan(ids);
+    }
+
+    private List<PlannedCheck> normalizePlan(List<String> requestedIds) {
         LinkedHashMap<String, PlannedCheck> selected = new LinkedHashMap<>();
         selected.put("PAGE_REACHED", ALLOWED_CHECKS.get("PAGE_REACHED"));
         selected.put("PAGE_TITLE", ALLOWED_CHECKS.get("PAGE_TITLE"));
