@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aitesting}
+      POSTGRES_USER: ${POSTGRES_USER:-aitesting}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-this-local-password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aitesting} -d ${POSTGRES_DB:-aitesting}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4444/status | grep -q '\"ready\": true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-aitesting}
+      DATABASE_USERNAME: ${POSTGRES_USER:-aitesting}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-change-this-local-password}
+      SELENIUM_REMOTE_URL: http://selenium:4444
+      BROWSER_TIMEOUT_SECONDS: ${BROWSER_TIMEOUT_SECONDS:-20}
+      MAX_TESTS_PER_RUN: ${MAX_TESTS_PER_RUN:-10}
+      ARTIFACTS_DIR: /app/artifacts
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+    volumes:
+      - artifacts:/app/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      selenium:
+        condition: service_started
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  artifacts:

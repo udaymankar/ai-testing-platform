@@ -1,0 +1,32 @@
+server:
+  port: ${BACKEND_PORT:8080}
+spring:
+  application:
+    name: ai-testing-platform
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/aitesting}
+    username: ${DATABASE_USERNAME:aitesting}
+    password: ${DATABASE_PASSWORD:aitesting}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  browser:
+    remote-url: ${SELENIUM_REMOTE_URL:}
+    timeout-seconds: ${BROWSER_TIMEOUT_SECONDS:20}
+    max-tests-per-run: ${MAX_TESTS_PER_RUN:10}
+  artifacts-dir: ${ARTIFACTS_DIR:./artifacts}
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
