@@ -1,8 +1,19 @@
 # TestPilot AI — AI Testing Platform
 
+[![Frontend Live on Render](https://img.shields.io/badge/Frontend-Live%20on%20Render-46B36B?logo=render&logoColor=white)](https://ai-testing-platform-frontend.onrender.com/) ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black) ![Vite](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white) ![Java](https://img.shields.io/badge/Java-21-orange?logo=openjdk&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F?logo=springboot&logoColor=white)
+
+**🚀 Live Frontend Preview: [https://ai-testing-platform-frontend.onrender.com/](https://ai-testing-platform-frontend.onrender.com/)**
+
 TestPilot AI is a development MVP for AI-assisted website QA. It combines a React dashboard, Java/Spring Boot REST API, PostgreSQL persistence, Selenium browser automation, optional AI test planning and a separate human manual-review workflow.
 
-> **Status:** The React frontend can be hosted as a free Render Static Site. Real registration, login, saved requests and Selenium automation require the Spring Boot backend and PostgreSQL to be deployed and connected. The application is not production-audited.
+### Deployment status
+
+- **Frontend:** Deployed on Render as a Static Site. Open the live link above to preview the user interface.
+- **Frontend CI:** The React/Vite production build passes in GitHub Actions.
+- **Backend, database and Selenium:** These are separate components and must be deployed and connected before registration, login, saved requests and real browser automation will work on the public site.
+- **Project stage:** Development MVP; not yet production-audited.
+
+> The live link currently demonstrates the deployed frontend UI. It should not be treated as a fully functional online testing service until the backend and database are connected.
 
 ## Features
 
