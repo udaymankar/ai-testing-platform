@@ -21,7 +21,7 @@ services:
     ports:
       - "4444:4444"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:4444/status | grep -q '\\\\"ready\\\\\": true'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4444/status | grep -q '\"ready\": true'"]
       interval: 10s
       timeout: 5s
       retries: 20

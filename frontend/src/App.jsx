@@ -2,9 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import './features.css'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
+function encodeBasicCredentials(value) {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach(byte => { binary += String.fromCharCode(byte) })
+  return window.btoa(binary)
+}
 function basicAuth(credentials) {
   if (!credentials?.email || !credentials?.password) return {}
-  return { Authorization: `Basic ${window.btoa(`${credentials.email.trim()}:${credentials.password}`)}` }
+  return { Authorization: `Basic ${encodeBasicCredentials(`${credentials.email.trim()}:${credentials.password}`)}` }
 }
 async function api(path, options = {}, credentials) {
   const response = await fetch(`${API}/api${path}`, {
@@ -214,7 +220,7 @@ function App() {
           <form onSubmit={registerAccount} className="auth-form">
             <div><label htmlFor="register-name">Full name</label><input id="register-name" autoComplete="name" required maxLength={80} value={registration.name} onChange={e => setRegistration(v => ({ ...v, name: e.target.value }))} /></div>
             <div><label htmlFor="register-email">Email address</label><input id="register-email" type="email" autoComplete="email" required maxLength={254} value={registration.email} onChange={e => setRegistration(v => ({ ...v, email: e.target.value }))} /></div>
-            <div><label htmlFor="register-password">Password (12–72 characters)</label><input id="register-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.password} onChange={e => setRegistration(v => ({ ...v, password: e.target.value }))} /></div>
+            <div><label htmlFor="register-password">Password (12+ characters; max 72 UTF-8 bytes)</label><input id="register-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.password} onChange={e => setRegistration(v => ({ ...v, password: e.target.value }))} /></div>
             <div><label htmlFor="register-confirm-password">Confirm password</label><input id="register-confirm-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.confirmPassword} onChange={e => setRegistration(v => ({ ...v, confirmPassword: e.target.value }))} /></div>
             <button className="primary" disabled={busy}>{busy ? 'Creating account…' : 'Create account'} <span>→</span></button>
           </form>

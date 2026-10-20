@@ -28,3 +28,9 @@ jobs:
           cache-dependency-path: frontend/package.json
       - run: npm install
       - run: npm run build
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose configuration
+        run: docker compose config --quiet
