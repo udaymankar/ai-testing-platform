@@ -30,6 +30,3 @@ app:
     api-key: ${OPENAI_API_KEY:}
     model: ${OPENAI_MODEL:gpt-4o-mini}
   frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
-  security:
-    username: ${APP_USERNAME:tester}
-    password: ${APP_PASSWORD:change-me-local-only}

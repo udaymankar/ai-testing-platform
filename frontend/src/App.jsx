@@ -3,8 +3,8 @@ import './features.css'
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
 function basicAuth(credentials) {
-  if (!credentials?.username || !credentials?.password) return {}
-  return { Authorization: `Basic ${window.btoa(`${credentials.username}:${credentials.password}`)}` }
+  if (!credentials?.email || !credentials?.password) return {}
+  return { Authorization: `Basic ${window.btoa(`${credentials.email.trim()}:${credentials.password}`)}` }
 }
 async function api(path, options = {}, credentials) {
   const response = await fetch(`${API}/api${path}`, {
@@ -14,7 +14,7 @@ async function api(path, options = {}, credentials) {
   if (!response.ok) {
     let message = `Request failed (${response.status})`
     try { const body = await response.json(); message = body.detail || body.message || message } catch {}
-    if (response.status === 401) message = 'Sign-in failed. Check APP_USERNAME and APP_PASSWORD in your .env file.'
+    if (response.status === 401) message = 'Invalid email or password.'
     if (response.status === 403) message = 'You are not allowed to perform this action.'
     throw new Error(message)
   }
@@ -23,8 +23,11 @@ async function api(path, options = {}, credentials) {
 }
 function Badge({ children, kind = '' }) { return <span className={`badge ${kind}`}>{children}</span> }
 function App() {
-  const [credentials, setCredentials] = useState({ username: '', password: '' })
+  const [credentials, setCredentials] = useState({ email: '', password: '' })
   const [signedIn, setSignedIn] = useState(false)
+  const [authMode, setAuthMode] = useState('login')
+  const [registration, setRegistration] = useState({ name: '', email: '', password: '', confirmPassword: '' })
+  const [profile, setProfile] = useState(null)
   const [url, setUrl] = useState('https://example.com')
   const [scope, setScope] = useState('General exploratory checks')
   const [browser, setBrowser] = useState('Chrome')
@@ -80,15 +83,45 @@ function App() {
   async function connect(event) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
     try {
+      const currentProfile = await api('/auth/login', { method: 'POST' }, credentials)
       const list = await api('/testing-requests', {}, credentials)
+      setProfile(currentProfile)
       setRequests(list)
       setSignedIn(true)
-      setNotice('Signed in. Your dashboard API connection is protected with HTTP Basic authentication.')
+      setNotice(`Welcome back, ${currentProfile.name}.`)
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  async function registerAccount(event) {
+    event.preventDefault(); setBusy(true); setError(''); setNotice('')
+    if (registration.password !== registration.confirmPassword) {
+      setError('The passwords do not match.')
+      setBusy(false)
+      return
+    }
+    if (new TextEncoder().encode(registration.password).length > 72) {
+      setError('Password must be no more than 72 UTF-8 bytes.')
+      setBusy(false)
+      return
+    }
+    try {
+      await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: registration.name.trim(),
+          email: registration.email.trim(),
+          password: registration.password,
+        }),
+      })
+      setCredentials({ email: registration.email.trim(), password: registration.password })
+      setRegistration(v => ({ ...v, confirmPassword: '' }))
+      setAuthMode('login')
+      setNotice('Account created successfully. Sign in with your new email and password.')
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   function signOut() {
     setSignedIn(false)
-    setCredentials({ username: '', password: '' })
+    setCredentials({ email: '', password: '' })
+    setProfile(null)
     setRequests([]); setSelected(null); setResults([]); setPlan([]); setFindings([])
     setNotice('Signed out. Your credentials have been cleared from this page.')
   }
@@ -163,7 +196,7 @@ function App() {
   return <div className="app-shell">
     <header className="topbar">
       <a className="brand" href="#"><span className="brand-mark">T</span><span>TestPilot <b>AI</b></span></a>
-      <div className="topbar-right"><span className="top-tag"><i /> AI-ASSISTED QUALITY ENGINE</span>{signedIn && <button className="text-button" onClick={signOut}>Sign out</button>}</div>
+      <div className="topbar-right"><span className="top-tag"><i /> AI-ASSISTED QUALITY ENGINE</span>{signedIn && <><span className="account-label">{profile?.name || profile?.email}</span><button className="text-button" onClick={signOut}>Sign out</button></>}</div>
     </header>
     <main>
       <section className="hero">
@@ -175,14 +208,29 @@ function App() {
       {notice && <div className="alert success">{notice}<button onClick={() => setNotice('')}>Dismiss</button></div>}
 
       {!signedIn ? <section className="panel auth-panel">
-        <div className="panel-heading"><div><span className="step">AUTH</span><h2>Sign in to your testing workspace</h2></div><Badge>PROTECTED API</Badge></div>
-        <p className="muted auth-copy">Use the APP_USERNAME and APP_PASSWORD configured for the backend. The credentials are kept in page memory and are not written to browser storage.</p>
-        <form onSubmit={connect} className="auth-form">
-          <div><label htmlFor="username">Username</label><input id="username" autoComplete="username" required value={credentials.username} onChange={e => setCredentials(v => ({ ...v, username: e.target.value }))} /></div>
-          <div><label htmlFor="password">Password</label><input id="password" type="password" autoComplete="current-password" required value={credentials.password} onChange={e => setCredentials(v => ({ ...v, password: e.target.value }))} /></div>
-          <button className="primary" disabled={busy}>{busy ? 'Connecting…' : 'Sign in and load dashboard'} <span>→</span></button>
-        </form>
-        <p className="fine-print">For local development, copy .env.example to .env and change the sample credentials before starting the services. Use HTTPS and unique secrets when deploying.</p>
+        {authMode === 'register' ? <>
+          <div className="panel-heading"><div><span className="step">ACCOUNT</span><h2>Create your TestPilot account</h2></div><Badge>FREE PREVIEW</Badge></div>
+          <p className="muted auth-copy">Create a private workspace for your testing requests. Each account can only access its own requests and findings.</p>
+          <form onSubmit={registerAccount} className="auth-form">
+            <div><label htmlFor="register-name">Full name</label><input id="register-name" autoComplete="name" required maxLength={80} value={registration.name} onChange={e => setRegistration(v => ({ ...v, name: e.target.value }))} /></div>
+            <div><label htmlFor="register-email">Email address</label><input id="register-email" type="email" autoComplete="email" required maxLength={254} value={registration.email} onChange={e => setRegistration(v => ({ ...v, email: e.target.value }))} /></div>
+            <div><label htmlFor="register-password">Password (12–72 characters)</label><input id="register-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.password} onChange={e => setRegistration(v => ({ ...v, password: e.target.value }))} /></div>
+            <div><label htmlFor="register-confirm-password">Confirm password</label><input id="register-confirm-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.confirmPassword} onChange={e => setRegistration(v => ({ ...v, confirmPassword: e.target.value }))} /></div>
+            <button className="primary" disabled={busy}>{busy ? 'Creating account…' : 'Create account'} <span>→</span></button>
+          </form>
+          <button type="button" className="auth-switch" onClick={() => { setAuthMode('login'); setError(''); setNotice('') }}>Already have an account? Sign in</button>
+          <p className="fine-print">Passwords are stored as BCrypt hashes. Use a unique password. Account registration currently has no email verification, so this is still a prototype—not a production identity service.</p>
+        </> : <>
+          <div className="panel-heading"><div><span className="step">SIGN IN</span><h2>Sign in to your testing workspace</h2></div><Badge>PROTECTED API</Badge></div>
+          <p className="muted auth-copy">Use the email address and password you registered with. Your credentials stay in page memory and are not saved to browser storage.</p>
+          <form onSubmit={connect} className="auth-form">
+            <div><label htmlFor="login-email">Email address</label><input id="login-email" type="email" autoComplete="username" required maxLength={254} value={credentials.email} onChange={e => setCredentials(v => ({ ...v, email: e.target.value }))} /></div>
+            <div><label htmlFor="login-password">Password</label><input id="login-password" type="password" autoComplete="current-password" required value={credentials.password} onChange={e => setCredentials(v => ({ ...v, password: e.target.value }))} /></div>
+            <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in and load dashboard'} <span>→</span></button>
+          </form>
+          <button type="button" className="auth-switch" onClick={() => { setAuthMode('register'); setError(''); setNotice('') }}>New to TestPilot? Create an account</button>
+          <p className="fine-print">To connect this deployed frontend to your backend later, set VITE_API_BASE_URL to the backend's HTTPS origin and set the backend's FRONTEND_ORIGIN to this site's exact URL.</p>
+        </>}
       </section> : <div className="layout">
         <section className="panel request-panel">
           <div className="panel-heading"><div><span className="step">01</span><h2>New testing request</h2></div><span className="muted">~ 1 minute</span></div>
@@ -235,7 +283,7 @@ function App() {
               </form>
               <div className="section-label">RECORDED FINDINGS ({findings.length})</div>
               {findings.length === 0 ? <p className="muted">No manual findings recorded yet.</p> : findings.map(item => <div className="finding-row" key={item.id}><div><b>{item.title}</b><p>{item.description}</p>{item.evidenceUrl && <a href={item.evidenceUrl} target="_blank" rel="noreferrer">Open evidence ↗</a>}</div><Badge kind={item.severity.toLowerCase()}>{item.severity}</Badge></div>)}
-              <small className="muted">This prototype uses one configured workspace account, not separate per-user accounts or record ownership. Add tenant-level authorization before a multi-user launch.</small>
+              <small className="muted">Requests and findings are scoped to the signed-in account. Only test websites you own or are authorized to assess.</small>
             </div>
           </div>}
         </section>

@@ -16,4 +16,7 @@ textarea:focus{border-color:#8ea2ff;box-shadow:0 0 0 3px #8397ff20}
 .finding-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid #273346}
 .finding-row>div{min-width:0;flex:1}.finding-row b{font-size:11px}.finding-row p{font-size:10px;color:#9ba9bc;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;margin:5px 0}.finding-row a{font-size:10px;color:#aab8ff;text-decoration:none;overflow-wrap:anywhere}
 .badge.low{color:#9abdf5;border-color:#354f77;background:#18283d}.badge.medium{color:#f0d38a;border-color:#5c4d2b;background:#302818}.badge.high{color:#ffb17f;border-color:#754c31;background:#38251b}.badge.critical{color:#ff9fa9;border-color:#69343e;background:#3a2028}
-@media(max-width:600px){.auth-form{grid-template-columns:1fr}.auth-form .primary{grid-column:auto}.auth-panel{padding:18px}.finding-fields{grid-template-columns:1fr}.topbar-right .top-tag{display:none}}
+.auth-switch{display:block;margin:18px auto 0;padding:8px 10px;border:0;background:transparent;color:#acb9ff;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.auth-switch:hover{color:#d3d9ff}
+.account-label{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#aebbd0;font-size:11px}
+@media(max-width:600px){.auth-form{grid-template-columns:1fr}.auth-form .primary{grid-column:auto}.auth-panel{padding:18px}.finding-fields{grid-template-columns:1fr}.topbar-right .top-tag{display:none}.account-label{max-width:110px}}

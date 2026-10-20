@@ -14,25 +14,33 @@ import java.util.UUID;
 @Service
 public class TestingRequestService {
     private final TestingRequestRepository requestRepository;
+    private final AppUserRepository userRepository;
     private final AutomationRunRepository runRepository;
     private final ManualReviewRepository manualReviewRepository;
     private final UrlSafetyService urlSafetyService;
     private final BrowserAutomationService browserAutomationService;
     private final TestPlanService testPlanService;
 
-    public TestingRequestService(TestingRequestRepository requestRepository, AutomationRunRepository runRepository,
-                                 ManualReviewRepository manualReviewRepository, UrlSafetyService urlSafetyService,
-                                 BrowserAutomationService browserAutomationService, TestPlanService testPlanService) {
-        this.requestRepository = requestRepository; this.runRepository = runRepository;
-        this.manualReviewRepository = manualReviewRepository; this.urlSafetyService = urlSafetyService;
-        this.browserAutomationService = browserAutomationService; this.testPlanService = testPlanService;
+    public TestingRequestService(TestingRequestRepository requestRepository, AppUserRepository userRepository,
+                                 AutomationRunRepository runRepository, ManualReviewRepository manualReviewRepository,
+                                 UrlSafetyService urlSafetyService, BrowserAutomationService browserAutomationService,
+                                 TestPlanService testPlanService) {
+        this.requestRepository = requestRepository;
+        this.userRepository = userRepository;
+        this.runRepository = runRepository;
+        this.manualReviewRepository = manualReviewRepository;
+        this.urlSafetyService = urlSafetyService;
+        this.browserAutomationService = browserAutomationService;
+        this.testPlanService = testPlanService;
     }
 
     @Transactional
-    public TestingRequest create(CreateTestingRequest dto) {
+    public TestingRequest create(CreateTestingRequest dto, String authenticatedEmail) {
+        AppUser owner = userRepository.findByEmailIgnoreCase(authenticatedEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Authenticated account no longer exists."));
         URI uri = urlSafetyService.validateAndNormalize(dto.targetUrl());
         TestingRequest newRequest = new TestingRequest(uri.toString(), dto.scope(),
-                dto.browser() == null ? "Chrome" : dto.browser(), dto.authorizationConfirmed());
+                dto.browser() == null ? "Chrome" : dto.browser(), dto.authorizationConfirmed(), owner);
         newRequest.setPlannedCheckIds(testPlanService.createPlan(dto.scope(), uri.toString()).stream()
                 .map(TestPlanService.PlannedCheck::id).collect(java.util.stream.Collectors.joining(",")));
         TestingRequest request = requestRepository.save(newRequest);
@@ -41,12 +49,11 @@ public class TestingRequestService {
     }
 
     @Transactional
-    public AutomationRun start(UUID requestId) {
-        TestingRequest request = requestRepository.findById(requestId)
+    public AutomationRun start(UUID requestId, String authenticatedEmail) {
+        TestingRequest request = requestRepository.findByIdAndOwner_EmailIgnoreCase(requestId, authenticatedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Testing request not found."));
         AutomationRun run = runRepository.save(new AutomationRun(request));
         UUID runId = run.getId();
-        // Dispatch only after commit so a fast worker cannot race the uncommitted run row.
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {

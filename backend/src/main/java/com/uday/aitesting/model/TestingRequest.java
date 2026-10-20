@@ -1,5 +1,6 @@
 package com.uday.aitesting.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -9,6 +10,13 @@ import java.util.UUID;
 public class TestingRequest {
     @Id @GeneratedValue
     private UUID id;
+
+    // Nullable for compatibility with any existing pre-registration records. All new requests are owner-assigned.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    @JsonIgnore
+    private AppUser owner;
+
     @Column(nullable = false, length = 2048)
     private String targetUrl;
     @Column(nullable = false, length = 120)
@@ -26,10 +34,15 @@ public class TestingRequest {
     private String plannedCheckIds;
 
     protected TestingRequest() {}
-    public TestingRequest(String targetUrl, String scope, String browser, boolean authorizationConfirmed) {
-        this.targetUrl = targetUrl; this.scope = scope; this.browser = browser;
+    public TestingRequest(String targetUrl, String scope, String browser, boolean authorizationConfirmed, AppUser owner) {
+        this.targetUrl = targetUrl;
+        this.scope = scope;
+        this.browser = browser;
         this.authorizationConfirmed = authorizationConfirmed;
+        this.owner = owner;
     }
+
+    @JsonIgnore public AppUser getOwner() { return owner; }
     public UUID getId() { return id; }
     public String getTargetUrl() { return targetUrl; }
     public String getScope() { return scope; }
