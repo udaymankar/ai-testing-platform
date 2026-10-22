@@ -1,6 +1,5 @@
 package com.uday.aitesting.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -26,9 +25,6 @@ public class ManualReview {
     protected ManualReview() {}
     public ManualReview(TestingRequest request) { this.testingRequest = request; }
     public UUID getId() { return id; }
-    @JsonIgnore
-    public TestingRequest getTestingRequest() { return testingRequest; }
-    @Transient
     public UUID getRequestId() { return testingRequest.getId(); }
     public ManualStatus getStatus() { return status; }
     public String getAssignedTester() { return assignedTester; }
