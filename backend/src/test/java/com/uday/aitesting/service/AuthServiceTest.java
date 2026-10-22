@@ -18,12 +18,14 @@ class AuthServiceTest {
     private AppUserRepository repository;
     private PasswordEncoder encoder;
     private AuthService service;
+    private EmailVerificationService emailVerificationService;
 
     @BeforeEach
     void setUp() {
         repository = mock(AppUserRepository.class);
         encoder = new BCryptPasswordEncoder(4);
-        service = new AuthService(repository, encoder);
+        emailVerificationService = mock(EmailVerificationService.class);
+        service = new AuthService(repository, encoder, emailVerificationService);
     }
 
     @Test
@@ -32,7 +34,7 @@ class AuthServiceTest {
         when(repository.saveAndFlush(any(AppUser.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UserProfile profile = service.register(new RegisterRequest(" Uday Mankar ", "Uday@Example.com",
-                "a-unique-password"));
+                "a-unique-password", "verified-token"));
 
         assertEquals("Uday Mankar", profile.name());
         assertEquals("uday@example.com", profile.email());
@@ -46,7 +48,7 @@ class AuthServiceTest {
     void duplicateEmailIsRejected() {
         when(repository.existsByEmailIgnoreCase("uday@example.com")).thenReturn(true);
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> service.register(new RegisterRequest("Uday", "uday@example.com", "a-unique-password")));
+                () -> service.register(new RegisterRequest("Uday", "uday@example.com", "a-unique-password", "verified-token")));
         assertEquals(409, error.getStatusCode().value());
         verify(repository, never()).saveAndFlush(any());
     }
@@ -56,7 +58,7 @@ class AuthServiceTest {
         when(repository.existsByEmailIgnoreCase("uday@example.com")).thenReturn(false);
         String password = "é".repeat(40);
         ResponseStatusException error = assertThrows(ResponseStatusException.class,
-                () -> service.register(new RegisterRequest("Uday", "uday@example.com", password)));
+                () -> service.register(new RegisterRequest("Uday", "uday@example.com", password, "verified-token")));
         assertEquals(400, error.getStatusCode().value());
         verify(repository, never()).saveAndFlush(any());
     }
