@@ -32,7 +32,7 @@ public class EmailVerificationService {
         this.passwordEncoder=passwordEncoder; this.mailSender=mailSender;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public void sendCode(String rawEmail) {
         String email=normalize(rawEmail);
         if (userRepository.existsByEmailIgnoreCase(email))
