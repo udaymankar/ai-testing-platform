@@ -1,6 +1,5 @@
 package com.uday.aitesting.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -29,9 +28,6 @@ public class AutomationResult {
         this.details = details; this.screenshotPath = screenshotPath;
     }
     public UUID getId() { return id; }
-    @JsonIgnore
-    public AutomationRun getRun() { return run; }
-    @Transient
     public UUID getRunId() { return run.getId(); }
     public String getTestName() { return testName; }
     public TestOutcome getOutcome() { return outcome; }
