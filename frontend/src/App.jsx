@@ -33,6 +33,9 @@ function App() {
   const [signedIn, setSignedIn] = useState(false)
   const [authMode, setAuthMode] = useState('login')
   const [registration, setRegistration] = useState({ name: '', email: '', password: '', confirmPassword: '' })
+  const [emailOtp, setEmailOtp] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [emailVerified, setEmailVerified] = useState(false)
   const [profile, setProfile] = useState(null)
   const [url, setUrl] = useState('https://example.com')
   const [scope, setScope] = useState('General exploratory checks')
@@ -97,8 +100,25 @@ function App() {
       setNotice(`Welcome back, ${currentProfile.name}.`)
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
+  async function sendEmailOtp() {
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await api('/auth/send-otp', { method: 'POST', body: JSON.stringify({ email: registration.email.trim() }) })
+      setOtpSent(true); setEmailVerified(false); setEmailOtp('')
+      setNotice('Verification code sent. Check your inbox and spam folder.')
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
+  async function verifyEmailOtp() {
+    setBusy(true); setError(''); setNotice('')
+    try {
+      await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email: registration.email.trim(), otp: emailOtp }) })
+      setEmailVerified(true)
+      setNotice('Email verified. You can now create your account.')
+    } catch (e) { setError(e.message) } finally { setBusy(false) }
+  }
   async function registerAccount(event) {
     event.preventDefault(); setBusy(true); setError(''); setNotice('')
+    if (!emailVerified) { setError('Verify your email before creating an account.'); setBusy(false); return }
     if (registration.password !== registration.confirmPassword) {
       setError('The passwords do not match.')
       setBusy(false)
@@ -120,6 +140,7 @@ function App() {
       })
       setCredentials({ email: registration.email.trim(), password: registration.password })
       setRegistration(v => ({ ...v, confirmPassword: '' }))
+      setEmailOtp(''); setOtpSent(false); setEmailVerified(false)
       setAuthMode('login')
       setNotice('Account created successfully. Sign in with your new email and password.')
     } catch (e) { setError(e.message) } finally { setBusy(false) }
@@ -216,13 +237,16 @@ function App() {
       {!signedIn ? <section className="panel auth-panel">
         {authMode === 'register' ? <>
           <div className="panel-heading"><div><span className="step">ACCOUNT</span><h2>Create your TestPilot account</h2></div><Badge>FREE PREVIEW</Badge></div>
-          <p className="muted auth-copy">Create a private workspace for your testing requests. Each account can only access its own requests and findings.</p>
+          <p className="muted auth-copy">Verify your email address before creating your account. Verification codes expire after 10 minutes.</p>
           <form onSubmit={registerAccount} className="auth-form">
             <div><label htmlFor="register-name">Full name</label><input id="register-name" autoComplete="name" required maxLength={80} value={registration.name} onChange={e => setRegistration(v => ({ ...v, name: e.target.value }))} /></div>
-            <div><label htmlFor="register-email">Email address</label><input id="register-email" type="email" autoComplete="email" required maxLength={254} value={registration.email} onChange={e => setRegistration(v => ({ ...v, email: e.target.value }))} /></div>
+            <div><label htmlFor="register-email">Email address</label><input id="register-email" type="email" autoComplete="email" required maxLength={254} value={registration.email} onChange={e => { setRegistration(v => ({ ...v, email: e.target.value })); setOtpSent(false); setEmailVerified(false); setEmailOtp('') }} /></div>
+            <div className="otp-row"><button type="button" className="secondary" disabled={busy || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registration.email)} onClick={sendEmailOtp}>{otpSent ? 'Resend verification code' : 'Send email OTP'}</button><span className={emailVerified ? 'otp-status verified' : 'otp-status'}>{emailVerified ? 'Email verified' : otpSent ? 'Code sent · expires in 10 minutes' : 'Email verification required'}</span></div>
+            {otpSent && !emailVerified && <div><label htmlFor="register-otp">6-digit email verification code</label><input id="register-otp" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={emailOtp} onChange={e => setEmailOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} /></div>}
+            {otpSent && !emailVerified && <div className="otp-row"><button type="button" className="secondary" disabled={busy || emailOtp.length !== 6} onClick={verifyEmailOtp}>Verify code</button></div>}
             <div><label htmlFor="register-password">Password (12+ characters; max 72 UTF-8 bytes)</label><input id="register-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.password} onChange={e => setRegistration(v => ({ ...v, password: e.target.value }))} /></div>
             <div><label htmlFor="register-confirm-password">Confirm password</label><input id="register-confirm-password" type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={registration.confirmPassword} onChange={e => setRegistration(v => ({ ...v, confirmPassword: e.target.value }))} /></div>
-            <button className="primary" disabled={busy}>{busy ? 'Creating account…' : 'Create account'} <span>→</span></button>
+            <button className="primary" disabled={busy || !emailVerified}>{busy ? 'Creating account…' : 'Create verified account'} <span>→</span></button>
           </form>
           <button type="button" className="auth-switch" onClick={() => { setAuthMode('login'); setError(''); setNotice('') }}>Already have an account? Sign in</button>
           <p className="fine-print">Passwords are stored as BCrypt hashes. Use a unique password. Account registration currently has no email verification, so this is still a prototype—not a production identity service.</p>
