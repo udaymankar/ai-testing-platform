@@ -18,10 +18,12 @@ import java.util.Locale;
 public class AuthService {
     private final AppUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthService(AppUserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(AppUserRepository userRepository, PasswordEncoder passwordEncoder, EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
@@ -35,6 +37,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Password must be no more than 72 UTF-8 bytes for BCrypt compatibility.");
         }
+        emailVerificationService.requireVerifiedAndConsume(email);
         if (userRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists.");
         }
