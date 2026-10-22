@@ -29,9 +29,8 @@ public class AuthController {
     }
 
     @PostMapping("/verify-otp")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void verifyOtp(@Valid @RequestBody VerifyEmailOtpRequest request) {
-        emailVerificationService.verify(request.email(), request.otp());
+    public java.util.Map<String, String> verifyOtp(@Valid @RequestBody VerifyEmailOtpRequest request) {
+        return java.util.Map.of("verificationToken", emailVerificationService.verify(request.email(), request.otp()));
     }
 
     @PostMapping("/register")
