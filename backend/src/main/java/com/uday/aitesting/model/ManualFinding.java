@@ -1,5 +1,6 @@
 package com.uday.aitesting.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -28,6 +29,9 @@ public class ManualFinding {
         this.severity = severity; this.evidenceUrl = evidenceUrl;
     }
     public UUID getId() { return id; }
+    @JsonIgnore
+    public ManualReview getManualReview() { return manualReview; }
+    @Transient
     public UUID getManualReviewId() { return manualReview.getId(); }
     public String getTitle() { return title; }
     public String getDescription() { return description; }
