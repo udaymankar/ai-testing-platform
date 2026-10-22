@@ -58,7 +58,7 @@ public class EmailVerificationService {
         }
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public void verify(String rawEmail, String otp) {
         String email=normalize(rawEmail);
         EmailVerification record=verificationRepository.findByEmailIgnoreCase(email)
