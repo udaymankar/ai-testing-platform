@@ -36,6 +36,7 @@ function App() {
   const [emailOtp, setEmailOtp] = useState('')
   const [otpSent, setOtpSent] = useState(false)
   const [emailVerified, setEmailVerified] = useState(false)
+  const [emailVerificationToken, setEmailVerificationToken] = useState('')
   const [profile, setProfile] = useState(null)
   const [url, setUrl] = useState('https://example.com')
   const [scope, setScope] = useState('General exploratory checks')
@@ -104,14 +105,15 @@ function App() {
     setBusy(true); setError(''); setNotice('')
     try {
       await api('/auth/send-otp', { method: 'POST', body: JSON.stringify({ email: registration.email.trim() }) })
-      setOtpSent(true); setEmailVerified(false); setEmailOtp('')
+      setOtpSent(true); setEmailVerified(false); setEmailOtp(''); setEmailVerificationToken('')
       setNotice('Verification code sent. Check your inbox and spam folder.')
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   async function verifyEmailOtp() {
     setBusy(true); setError(''); setNotice('')
     try {
-      await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email: registration.email.trim(), otp: emailOtp }) })
+      const verified = await api('/auth/verify-otp', { method: 'POST', body: JSON.stringify({ email: registration.email.trim(), otp: emailOtp }) })
+      setEmailVerificationToken(verified.verificationToken)
       setEmailVerified(true)
       setNotice('Email verified. You can now create your account.')
     } catch (e) { setError(e.message) } finally { setBusy(false) }
@@ -136,11 +138,12 @@ function App() {
           name: registration.name.trim(),
           email: registration.email.trim(),
           password: registration.password,
+          emailVerificationToken,
         }),
       })
       setCredentials({ email: registration.email.trim(), password: registration.password })
       setRegistration(v => ({ ...v, confirmPassword: '' }))
-      setEmailOtp(''); setOtpSent(false); setEmailVerified(false)
+      setEmailOtp(''); setOtpSent(false); setEmailVerified(false); setEmailVerificationToken('')
       setAuthMode('login')
       setNotice('Account created successfully. Sign in with your new email and password.')
     } catch (e) { setError(e.message) } finally { setBusy(false) }
