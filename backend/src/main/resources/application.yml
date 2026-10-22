@@ -7,6 +7,17 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/aitesting}
     username: ${DATABASE_USERNAME:aitesting}
     password: ${DATABASE_PASSWORD:aitesting}
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   jpa:
     hibernate:
       ddl-auto: update
@@ -21,6 +32,8 @@ management:
       exposure:
         include: health,info
 app:
+  mail:
+    from: ${MAIL_FROM:}
   browser:
     remote-url: ${SELENIUM_REMOTE_URL:}
     timeout-seconds: ${BROWSER_TIMEOUT_SECONDS:20}
