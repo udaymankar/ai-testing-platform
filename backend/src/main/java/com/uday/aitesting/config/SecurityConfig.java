@@ -40,7 +40,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/health", "/actuator/health").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/send-otp", "/api/auth/verify-otp").permitAll()
                 .anyRequest().authenticated())
             .httpBasic(Customizer.withDefaults());
         return http.build();
