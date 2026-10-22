@@ -59,7 +59,7 @@ public class EmailVerificationService {
     }
 
     @Transactional(noRollbackFor = ResponseStatusException.class)
-    public void verify(String rawEmail, String otp) {
+    public String verify(String rawEmail, String otp) {
         String email=normalize(rawEmail);
         EmailVerification record=verificationRepository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,"Request a verification code first."));
@@ -70,16 +70,18 @@ public class EmailVerificationService {
             record.recordFailedAttempt(); verificationRepository.save(record);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Incorrect verification code.");
         }
-        record.markVerified(now); verificationRepository.save(record);
+        String verificationToken = java.util.UUID.randomUUID().toString();
+        record.markVerified(now, passwordEncoder.encode(verificationToken)); verificationRepository.save(record);
+        return verificationToken;
     }
 
     @Transactional
-    public void requireVerifiedAndConsume(String rawEmail) {
+    public void requireVerifiedAndConsume(String rawEmail, String verificationToken) {
         String email=normalize(rawEmail);
         EmailVerification record=verificationRepository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,"Verify your email before creating an account."));
-        if(!record.isVerifiedAndFresh(Instant.now()))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Email verification is missing or expired. Verify your email again.");
+        if(!record.isVerifiedAndFresh(Instant.now()) || verificationToken == null || record.getVerificationTokenHash() == null || !passwordEncoder.matches(verificationToken, record.getVerificationTokenHash()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Email verification is missing, invalid or expired. Verify your email again.");
         verificationRepository.delete(record);
     }
 
