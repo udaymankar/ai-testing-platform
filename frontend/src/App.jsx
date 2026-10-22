@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import './features.css'
 
-const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '')
+const API = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 function encodeBasicCredentials(value) {
   const bytes = new TextEncoder().encode(value)
   let binary = ''
