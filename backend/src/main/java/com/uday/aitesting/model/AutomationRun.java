@@ -1,5 +1,6 @@
 package com.uday.aitesting.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -21,6 +22,7 @@ public class AutomationRun {
     protected AutomationRun() {}
     public AutomationRun(TestingRequest request) { this.testingRequest = request; }
     public UUID getId() { return id; }
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public TestingRequest getTestingRequest() { return testingRequest; }
     public RunStatus getStatus() { return status; }
     public Instant getStartedAt() { return startedAt; }
